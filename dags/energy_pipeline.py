@@ -50,9 +50,8 @@ def ingest_and_clean(**context) -> None:
     df = pd.read_csv(RAW_DATA_PATH)
     logger.info("Loaded %d raw rows", len(df))
 
-    df["side"] = df["Sell_Buy"].map(
-        {"buy": "buy", "sell": "sell", "BUY": "buy", "SELL": "sell"}
-    )
+    # Adding a map to catch any unexpected values in the Sell_Buy column and convert them to NaN
+    df["side"] = df["Sell_Buy"].str.strip().str.lower().map({"buy": "buy", "sell": "sell"})
 
     df["Price"] = df["Price"].fillna(df["Price"].mean())
     df["Volume"] = df["Volume"].fillna(df["Volume"].mean())
