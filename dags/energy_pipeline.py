@@ -69,6 +69,7 @@ def ingest_and_clean(**context) -> None:
     df = df[~missing]
 
     df = df.dropna(subset=["side"])
+    df["date"] = df["Timestamp"].dt.date
     df["hour"] = df["Timestamp"].dt.hour
 
     os.makedirs(os.path.dirname(CLEANED_PATH), exist_ok=True)
@@ -87,11 +88,12 @@ def aggregate_hourly(**context) -> None:
     df = pd.read_parquet(CLEANED_PATH)
 
     records = []
-    for hour, hourly in df.groupby("hour"):
+    for (date, hour), hourly in df.groupby(["date", "hour"]):
         buys = hourly[hourly["side"] == "buy"]
         sells = hourly[hourly["side"] == "sell"]
         records.append(
             {
+                "date": date,
                 "hour": hour,
                 "buy_count": len(buys),
                 "sell_count": len(sells),
@@ -107,7 +109,7 @@ def aggregate_hourly(**context) -> None:
             }
         )
 
-    summary = pd.DataFrame(records).sort_values("hour")
+    summary = pd.DataFrame(records).sort_values(["date", "hour"])
 
     os.makedirs(os.path.dirname(SUMMARY_PATH), exist_ok=True)
     summary.to_csv(
