@@ -50,6 +50,8 @@ def ingest_and_clean(**context) -> None:
     df = pd.read_csv(RAW_DATA_PATH)
     logger.info("Loaded %d raw rows", len(df))
 
+    df["Timestamp"] = pd.to_datetime(df["Timestamp"], utc=True)
+
     # Adding a map to catch any unexpected values in the Sell_Buy column and convert them to NaN
     df["side"] = df["Sell_Buy"].str.strip().str.lower().map({"buy": "buy", "sell": "sell"})
 
@@ -57,7 +59,7 @@ def ingest_and_clean(**context) -> None:
     df["Volume"] = df["Volume"].fillna(df["Volume"].mean())
 
     df = df.dropna(subset=["side"])
-    df["hour"] = df["Timestamp"].astype(str).str.slice(11, 13).astype(int)
+    df["hour"] = df["Timestamp"].dt.hour
 
     os.makedirs(os.path.dirname(CLEANED_PATH), exist_ok=True)
     df.to_parquet(CLEANED_PATH, index=False)
