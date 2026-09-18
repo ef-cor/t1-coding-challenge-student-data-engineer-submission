@@ -68,7 +68,7 @@ def ingest_and_clean(**context) -> None:
 
 def _vwap(group: pd.DataFrame) -> float:
     """Volume-weighted average price for a group of bids."""
-    return group["Price"].mean()
+    return (group["Price"] * group["Volume"]).sum() / group["Volume"].sum()
 
 
 def aggregate_hourly(**context) -> None:
