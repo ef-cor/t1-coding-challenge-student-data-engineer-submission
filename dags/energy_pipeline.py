@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # --- Paths ----------------------------------------------------------------
 RAW_DATA_PATH = "/opt/airflow/dags/energy_data.csv"
 CLEANED_PATH = "/opt/airflow/processed_data/cleaned_bids.parquet"
-SUMMARY_PATH = "/opt/airflow/output/hourly_summary.csv"
+SUMMARY_PATH = "/opt/airflow/output/hourly_summary_{ds}.csv"
 
 # Rows missing Price or Volume are dropped. Above this fraction the input is
 # treated as too degraded to summarise and the task fails instead.
@@ -111,14 +111,10 @@ def aggregate_hourly(**context) -> None:
 
     summary = pd.DataFrame(records).sort_values(["date", "hour"])
 
-    os.makedirs(os.path.dirname(SUMMARY_PATH), exist_ok=True)
-    summary.to_csv(
-        SUMMARY_PATH,
-        mode="a",
-        header=not os.path.exists(SUMMARY_PATH),
-        index=False,
-    )
-    logger.info("Wrote hourly summary (%d hours) to %s", len(summary), SUMMARY_PATH)
+    summary_path = SUMMARY_PATH.format(ds=context["ds"])
+    os.makedirs(os.path.dirname(summary_path), exist_ok=True)
+    summary.to_csv(summary_path, index=False)
+    logger.info("Wrote hourly summary (%d hours) to %s", len(summary), summary_path)
 
 
 with DAG(
