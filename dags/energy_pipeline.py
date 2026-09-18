@@ -32,6 +32,9 @@ SUMMARY_PATH = "/opt/airflow/output/hourly_summary_{ds}.csv"
 # treated as too degraded to summarise and the task fails instead.
 MAX_MISSING_FRACTION = 0.1
 
+# Share of rows allowed to carry a Sell_Buy value outside the known vocabulary.
+MAX_UNRECOGNISED_FRACTION = 0.01
+
 # --- DAG config -----------------------------------------------------------
 default_args = {
     "owner": "data-platform",
@@ -68,6 +71,18 @@ def ingest_and_clean(**context) -> None:
     logger.info("Dropping %d rows missing Price or Volume", missing.sum())
     df = df[~missing]
 
+    unrecognised = df.loc[df["side"].isna(), "Sell_Buy"]
+    if len(unrecognised) / len(df) > MAX_UNRECOGNISED_FRACTION:
+        raise ValueError(
+            f"{len(unrecognised) / len(df):.1%} of rows have an unrecognised "
+            f"Sell_Buy value, above the {MAX_UNRECOGNISED_FRACTION:.0%} threshold"
+        )
+    if not unrecognised.empty:
+        logger.warning(
+            "Dropping %d rows with unrecognised Sell_Buy values: %s",
+            len(unrecognised),
+            unrecognised.value_counts().to_dict(),
+        )
     df = df.dropna(subset=["side"])
     df["date"] = df["Timestamp"].dt.date
     df["hour"] = df["Timestamp"].dt.hour
@@ -79,7 +94,10 @@ def ingest_and_clean(**context) -> None:
 
 def _vwap(group: pd.DataFrame) -> float:
     """Volume-weighted average price for a group of bids."""
-    return (group["Price"] * group["Volume"]).sum() / group["Volume"].sum()
+    total_volume = group["Volume"].sum()
+    if total_volume == 0:
+        return float("nan")
+    return (group["Price"] * group["Volume"]).sum() / total_volume
 
 
 def aggregate_hourly(**context) -> None:
