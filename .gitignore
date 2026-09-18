@@ -179,3 +179,8 @@ dags/solution_dag.py
 dags/daily_summary.csv
 dags/processed_data
 dags/cleaned_data.parquet
+
+# Airflow runtime output (docker-compose mounts these at the repo root)
+logs/
+output/
+processed_data/
