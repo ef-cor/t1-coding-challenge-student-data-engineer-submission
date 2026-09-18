@@ -28,6 +28,10 @@ RAW_DATA_PATH = "/opt/airflow/dags/energy_data.csv"
 CLEANED_PATH = "/opt/airflow/processed_data/cleaned_bids.parquet"
 SUMMARY_PATH = "/opt/airflow/output/hourly_summary.csv"
 
+# Rows missing Price or Volume are dropped. Above this fraction the input is
+# treated as too degraded to summarise and the task fails instead.
+MAX_MISSING_FRACTION = 0.1
+
 # --- DAG config -----------------------------------------------------------
 default_args = {
     "owner": "data-platform",
@@ -43,7 +47,7 @@ def ingest_and_clean(**context) -> None:
 
     Cleaning steps:
       * normalise the buy/sell side to lower case
-      * fill missing prices and volumes with the column average
+      * drop rows missing a price or a volume
       * derive the trading hour from the timestamp
     """
     logger.info("Reading raw bids from %s", RAW_DATA_PATH)
@@ -55,8 +59,14 @@ def ingest_and_clean(**context) -> None:
     # Adding a map to catch any unexpected values in the Sell_Buy column and convert them to NaN
     df["side"] = df["Sell_Buy"].str.strip().str.lower().map({"buy": "buy", "sell": "sell"})
 
-    df["Price"] = df["Price"].fillna(df["Price"].mean())
-    df["Volume"] = df["Volume"].fillna(df["Volume"].mean())
+    missing = df[["Price", "Volume"]].isna().any(axis=1)
+    if missing.mean() > MAX_MISSING_FRACTION:
+        raise ValueError(
+            f"{missing.mean():.1%} of rows are missing Price or Volume, "
+            f"above the {MAX_MISSING_FRACTION:.0%} threshold"
+        )
+    logger.info("Dropping %d rows missing Price or Volume", missing.sum())
+    df = df[~missing]
 
     df = df.dropna(subset=["side"])
     df["hour"] = df["Timestamp"].dt.hour
