@@ -5,9 +5,9 @@ Two-stage Airflow pipeline for the intraday energy bid feed:
 
     ingest_and_clean  ->  aggregate_hourly
 
-Stage 1 reads the raw bid export (CSV), standardizes it, handles missing
-values and writes a clean Parquet dataset. Stage 2 reads that dataset and
-produces an hourly market summary (counts, average price, VWAP, spread).
+Stage 1 reads the raw bid export (CSV), normalises it, drops unusable rows
+and writes a clean Parquet dataset. Stage 2 reads that dataset and produces
+a summary per trading hour (counts, average price, VWAP, spread).
 
 """
 
@@ -49,9 +49,10 @@ def ingest_and_clean(**context) -> None:
     """Stage 1 — load the raw bid export, clean it, and persist Parquet.
 
     Cleaning steps:
+      * parse timestamps to UTC
       * normalise the buy/sell side to lower case
       * drop rows missing a price or a volume
-      * derive the trading hour from the timestamp
+      * derive the trading date and hour from the timestamp
     """
     logger.info("Reading raw bids from %s", RAW_DATA_PATH)
     df = pd.read_csv(RAW_DATA_PATH)
